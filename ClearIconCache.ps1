@@ -1,21 +1,30 @@
-﻿#requires -Version 5.1
-<#
+﻿<#
 .SYNOPSIS
     清除 Windows 图标缓存
 .DESCRIPTION
     结束资源管理器 → 删除缓存文件 → 重启资源管理器。
     真正让 explorer 重新加载图标缓存，桌面/任务栏会闪烁约 3 秒。
 
+    交互运行时（双击或在控制台窗口手动执行）会先列出将要执行的操作，
+    按 Y 确认后才开始清理；加 -Force 可跳过确认。
+
     不需要管理员权限（只结束当前用户会话自己的 explorer 进程）。
     PowerShell 5.1+ / Windows 10/11。
 
 .EXAMPLE
     .\ClearIconCache.ps1
-    双击或在 PowerShell 窗口中直接运行。
+    双击或在 PowerShell 窗口中直接运行（会要求按 Y 确认）。
+
+.EXAMPLE
+    .\ClearIconCache.ps1 -Force
+    跳过确认，直接开始清理。
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\ClearIconCache.ps1
     即使 ExecutionPolicy 设为 Restricted 也能跑（适合放到别的机器上）。
+
+.PARAMETER Force
+    跳过开头的确认提示，直接开始清理。
 
 .NOTES
     关于 ExecutionPolicy（脚本运行策略）：
@@ -41,13 +50,62 @@
     项目主页: https://github.com/Tidezy/ClearIconCache
 #>
 
+# 注意: #requires 不能移到注释帮助块前面，否则 Get-Help 将识别不到脚本帮助。
+#requires -Version 5.1
+
+param(
+    [switch]$Force   # 跳过开头的确认提示（命令行/自动化用）
+)
+
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $Host.UI.RawUI.WindowTitle = '清除 Windows 图标缓存'
 
 Write-Host '============================================' -ForegroundColor Cyan
-Write-Host '  正在清除 Windows 图标缓存 ...' -ForegroundColor Cyan
+Write-Host '  清除 Windows 图标缓存' -ForegroundColor Cyan
 Write-Host '============================================' -ForegroundColor Cyan
 Write-Host ''
+
+# 步骤 0: 确认。仅在交互控制台（双击或手动运行）提示；
+# -Force 与非交互宿主（输入重定向、计划任务等）直接跳过，避免卡住自动化。
+$interactive = $false
+if (-not $Force) {
+    try {
+        $interactive = $Host.Name -eq 'ConsoleHost' -and -not [Console]::IsInputRedirected
+    } catch {
+        $interactive = $false
+    }
+}
+
+if ($interactive) {
+    Write-Host '本脚本将执行以下操作:' -ForegroundColor Gray
+    Write-Host '  1. 结束并重启资源管理器 explorer（桌面/任务栏闪烁约 3 秒，已打开的文件夹窗口会关闭）' -ForegroundColor Gray
+    Write-Host '  2. 删除图标/缩略图缓存文件（explorer 会自动重建，不影响个人文件）' -ForegroundColor Gray
+    Write-Host ''
+    Write-Host -NoNewline '确认继续? [Y] 继续 / 其他键 取消: ' -ForegroundColor Yellow
+
+    $proceed = $false
+    try {
+        $key = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        Write-Host ''
+        if ($key.Character -in 'y', 'Y') {
+            $proceed = $true
+        } else {
+            Write-Host '已取消，未做任何更改。' -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host ''
+        Write-Host '当前宿主无法读取按键输入，已取消。' -ForegroundColor Gray
+    }
+
+    if (-not $proceed) {
+        Write-Host ''
+        Write-Host '按任意键关闭本窗口 . . .' -ForegroundColor Gray
+        try {
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+        } catch { }
+        exit 0
+    }
+}
 
 # 只处理当前用户会话的 explorer（避免误杀其他登录用户的资源管理器）
 $sessionId = (Get-Process -Id $PID).SessionId

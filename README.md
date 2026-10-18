@@ -5,6 +5,7 @@
 ## ✨ 特点
 
 - **无需管理员权限** —— 只结束当前用户会话自己的 explorer 进程，不碰其他登录用户
+- **防误触确认** —— 交互运行先列出将要执行的操作，按 `Y` 才开始；`-Force` 或非交互场景（管道、计划任务）自动跳过
 - **优先优雅退出** —— 先向任务栏窗口发送 `WM_QUIT` 请求 explorer 自行退出；对开启了 `AutoRestartShell` 的机器会如实说明系统行为，不会误报错误
 - **逐文件结果汇报** —— 每个缓存文件的删除结果都会单独显示；结尾横幅按实际结果变色（绿色 = 全部成功；红色 = 有失败并给出处理建议）
 - **删除范围明确** —— 只处理 `IconCache.db` 与 `iconcache_*.db` / `thumbcache_*.db`，不触碰其他文件
@@ -16,6 +17,12 @@
 
 ```powershell
 .\ClearIconCache.ps1
+```
+
+脚本会先列出将要执行的操作（结束 explorer、删除缓存），按 `Y` 确认后才开始清理；按其他键直接退出。熟悉流程后可用 `-Force` 跳过确认：
+
+```powershell
+.\ClearIconCache.ps1 -Force
 ```
 
 如果提示 *running scripts is disabled*，说明当前用户执行策略禁止运行脚本，任选一种方式解决：
@@ -32,6 +39,7 @@
 
 | 步骤 | 说明 |
 | --- | --- |
+| 0. 确认（交互时） | 列出将要执行的操作，按 `Y` 继续；`-Force` 或非交互宿主自动跳过 |
 | 1. 停止 explorer | 先发 `WM_QUIT` 优雅退出请求，失败则强杀兜底 |
 | 2. 等待退出 | 轮询检测进程退出，等待文件句柄释放 |
 | 3. 删除缓存 | `%LOCALAPPDATA%\IconCache.db` 及 `%LOCALAPPDATA%\Microsoft\Windows\Explorer\` 下的 `iconcache_*.db` / `thumbcache_*.db` |
